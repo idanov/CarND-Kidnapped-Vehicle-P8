@@ -12,6 +12,21 @@
 
 #include "particle_filter.h"
 
+double bivariate_pdf(double mu_x, double mu_y, double x, double y, double std_x, double std_y) {
+    const double std_x2 = pow(std_x, 2);
+    const double std_y2 = pow(std_y, 2);
+    const double diff_x2 = pow(x - mu_x, 2);
+    const double diff_y2 = pow(y - mu_y, 2);
+    return exp(-0.5f * (diff_x2 / std_x2 + diff_y2 / std_y2)) / (2.0f * M_PI * std_x * std_y);
+};
+
+LandmarkObs transformObservation(Particle p, LandmarkObs obs) {
+    LandmarkObs updatedObs = {obs.id, obs.x, obs.y};
+    updatedObs.x = obs.x * cos(p.theta) - obs.y * sin(p.theta) + p.x;
+    updatedObs.y = obs.x * sin(p.theta) + obs.y * cos(p.theta) + p.y;
+    return updatedObs;
+};
+
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	std::default_random_engine gen;
 
@@ -22,13 +37,13 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	double std_theta = std[2];
 
 	std::normal_distribution<double> dist_x(x, std_x);
-	std::normal_distribution<double> dist_y(x, std_y);
+	std::normal_distribution<double> dist_y(y, std_y);
 	std::normal_distribution<double> dist_theta(theta, std_theta);
 
 	for (int i = 0; i < num_particles; i++) {
 		Particle sample;
 		sample.id = i;
-    sample.x = dist_x(gen);
+		sample.x = dist_x(gen);
 		sample.y = dist_y(gen);
 		sample.theta = dist_theta(gen);
 		sample.weight = 1.0;
@@ -69,7 +84,7 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 }
 
 void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::vector<LandmarkObs>& observations) {
-	if(!predicted.empty()) {
+    if(!predicted.empty()) {
         for(int i = 0; i < observations.size(); i++) {
             int id = 0;
             LandmarkObs obs = observations[i];
@@ -88,17 +103,35 @@ void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::ve
 
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], 
 		std::vector<LandmarkObs> observations, Map map_landmarks) {
-	// TODO: Update the weights of each particle using a mult-variate Gaussian distribution. You can read
-	//   more about this distribution here: https://en.wikipedia.org/wiki/Multivariate_normal_distribution
-	// NOTE: The observations are given in the VEHICLE'S coordinate system. Your particles are located
-	//   according to the MAP'S coordinate system. You will need to transform between the two systems.
-	//   Keep in mind that this transformation requires both rotation AND translation (but no scaling).
-	//   The following is a good resource for the theory:
-	//   https://www.willamette.edu/~gorr/classes/GeneralGraphics/Transforms/transforms2d.htm
-	//   and the following is a good resource for the actual equation to implement (look at equation 
-	//   3.33. Note that you'll need to switch the minus sign in that equation to a plus to account 
-	//   for the fact that the map's y-axis actually points downwards.)
-	//   http://planning.cs.uiuc.edu/node99.html
+	for (int i = 0; i < num_particles; i++) {
+		Particle p = particles[i];
+		std::vector<LandmarkObs> transformed_obs;
+		for(int j = 0; j < observations.size(); j++) {
+			transformed_obs.push_back(transformObservation(p, observations[j]));
+		}
+
+		std::vector<LandmarkObs> predicted;
+		for(int j = 0; j < map_landmarks.landmark_list.size(); j++) {
+			Map::single_landmark_s landmark = map_landmarks.landmark_list[j];
+			if(dist(p.x, p.y, landmark.x_f, landmark.y_f) <= sensor_range) {
+				LandmarkObs obs = {landmark.id_i, landmark.x_f, landmark.y_f};
+				predicted.push_back(obs);
+			}
+		}
+
+		if(!predicted.empty()) {
+			dataAssociation(predicted, transformed_obs);
+			double weight = 1.0f;
+			for(int j = 0; j < transformed_obs.size(); j++) {
+				LandmarkObs obs = transformed_obs[j];
+				weight = weight * bivariate_pdf(predicted[obs.id].x, predicted[obs.id].y, obs.x, obs.y, std_landmark[0], std_landmark[1]);
+			}
+			particles[i].weight = weight;
+		} else {
+			particles[i].weight = 0.0f;
+		}
+        weights[i] = particles[i].weight;
+	}
 }
 
 void ParticleFilter::resample() {

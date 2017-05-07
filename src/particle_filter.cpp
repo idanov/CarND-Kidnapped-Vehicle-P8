@@ -12,12 +12,14 @@
 
 #include "particle_filter.h"
 
+std::default_random_engine gen;
+
 double bivariate_pdf(double mu_x, double mu_y, double x, double y, double std_x, double std_y) {
     const double std_x2 = pow(std_x, 2);
     const double std_y2 = pow(std_y, 2);
     const double diff_x2 = pow(x - mu_x, 2);
     const double diff_y2 = pow(y - mu_y, 2);
-    return exp(-0.5f * (diff_x2 / std_x2 + diff_y2 / std_y2)) / (2.0f * M_PI * std_x * std_y);
+    return exp(-.5 * (diff_x2 / std_x2 + diff_y2 / std_y2)) / (2. * M_PI * std_x * std_y);
 };
 
 LandmarkObs transformObservation(Particle p, LandmarkObs obs) {
@@ -28,8 +30,6 @@ LandmarkObs transformObservation(Particle p, LandmarkObs obs) {
 };
 
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
-	std::default_random_engine gen;
-
 	num_particles = 100;
 
 	double std_x = std[0];
@@ -46,7 +46,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 		sample.x = dist_x(gen);
 		sample.y = dist_y(gen);
 		sample.theta = dist_theta(gen);
-		sample.weight = 1.0;
+		sample.weight = 1.;
 
 		weights.push_back(sample.weight);
 		particles.push_back(sample);
@@ -56,29 +56,29 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 }
 
 void ParticleFilter::prediction(double delta_t, double std_pos[], double velocity, double yaw_rate) {
-	std::default_random_engine gen;
-
 	double std_x = std_pos[0];
 	double std_y = std_pos[1];
 	double std_theta = std_pos[2];
 
-	std::normal_distribution<double> dist_x(0, std_x);
-	std::normal_distribution<double> dist_y(0, std_y);
-	std::normal_distribution<double> dist_theta(0, std_theta);
+	std::normal_distribution<double> dist_x(0., std_x);
+	std::normal_distribution<double> dist_y(0., std_y);
+	std::normal_distribution<double> dist_theta(0., std_theta);
 
 	for (int i = 0; i < num_particles; i++) {
-		Particle sample = particles[i];
+		Particle p = particles[i];
 		if(yaw_rate > 1e-3) {
-			double theta0 = sample.theta;
-			sample.theta += yaw_rate * delta_t + dist_theta(gen);
-			sample.x += (sin(sample.theta) - sin(theta0)) * velocity / yaw_rate + dist_x(gen);
-			sample.y += (cos(theta0) - cos(sample.theta)) * velocity / yaw_rate + dist_y(gen);
+            const double yaw_dt = yaw_rate * delta_t;
+            const double v_over_yaw = velocity / yaw_rate;
+			p.x += v_over_yaw * (sin(p.theta + yaw_dt) - sin(p.theta)) + dist_x(gen);
+			p.y += v_over_yaw * (cos(p.theta) - cos(p.theta + yaw_dt)) + dist_y(gen);
+            p.theta += yaw_dt + dist_theta(gen);
 		} else {
-			sample.theta += dist_theta(gen);
-			sample.x += velocity * delta_t * sin(sample.theta) + dist_x(gen);
-			sample.y -= velocity * delta_t * cos(sample.theta) + dist_y(gen);
+            const double v_dt = velocity * delta_t;
+			p.x += v_dt * sin(p.theta) + dist_x(gen);
+			p.y += v_dt * cos(p.theta) + dist_y(gen);
+            p.theta += dist_theta(gen);
 		}
-		particles[i] = sample;
+		particles[i] = p;
 	}
 
 }
@@ -121,21 +121,20 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 
 		if(!predicted.empty()) {
 			dataAssociation(predicted, transformed_obs);
-			double weight = 1.0f;
+			double weight = 1.;
 			for(int j = 0; j < transformed_obs.size(); j++) {
 				LandmarkObs obs = transformed_obs[j];
 				weight = weight * bivariate_pdf(predicted[obs.id].x, predicted[obs.id].y, obs.x, obs.y, std_landmark[0], std_landmark[1]);
 			}
 			particles[i].weight = weight;
 		} else {
-			particles[i].weight = 0.0f;
+			particles[i].weight = 0.;
 		}
         weights[i] = particles[i].weight;
 	}
 }
 
 void ParticleFilter::resample() {
-	std::default_random_engine gen;
 	std::discrete_distribution<> distr(weights.begin(), weights.end());
 	std::vector<Particle> updated;
 	for(int i = 0; i < num_particles; i++) {
@@ -150,7 +149,7 @@ void ParticleFilter::write(std::string filename) {
 	std::ofstream dataFile;
 	dataFile.open(filename, std::ios::app);
 	for (int i = 0; i < num_particles; ++i) {
-		dataFile << particles[i].x << " " << particles[i].y << " " << particles[i].theta << "\n";
+		dataFile << particles[i].x << " " << particles[i].y << " " << particles[i].theta << " " << particles[i].weight << "\n";
 	}
 	dataFile.close();
 }

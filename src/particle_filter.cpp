@@ -25,7 +25,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	std::normal_distribution<double> dist_y(x, std_y);
 	std::normal_distribution<double> dist_theta(theta, std_theta);
 
-	for (int i = 0; i < num_particles; ++i) {
+	for (int i = 0; i < num_particles; i++) {
 		Particle sample;
 		sample.id = i;
     sample.x = dist_x(gen);
@@ -51,9 +51,9 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 	std::normal_distribution<double> dist_y(0, std_y);
 	std::normal_distribution<double> dist_theta(0, std_theta);
 
-	for (int i = 0; i < num_particles; ++i) {
+	for (int i = 0; i < num_particles; i++) {
 		Particle sample = particles[i];
-		if(yaw_rate > 1e-4) {
+		if(yaw_rate > 1e-3) {
 			double theta0 = sample.theta;
 			sample.theta += yaw_rate * delta_t + dist_theta(gen);
 			sample.x += (sin(sample.theta) - sin(theta0)) * velocity / yaw_rate + dist_x(gen);
@@ -63,6 +63,7 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 			sample.x += velocity * delta_t * sin(sample.theta) + dist_x(gen);
 			sample.y -= velocity * delta_t * cos(sample.theta) + dist_y(gen);
 		}
+		particles[i] = sample;
 	}
 
 }

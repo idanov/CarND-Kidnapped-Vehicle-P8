@@ -15,11 +15,13 @@
 std::default_random_engine gen;
 
 double bivariate_pdf(double mu_x, double mu_y, double x, double y, double std_x, double std_y) {
-    const double std_x2 = pow(std_x, 2);
-    const double std_y2 = pow(std_y, 2);
+    const double std_x2 = 2 * pow(std_x, 2);
+    const double std_y2 = 2 * pow(std_y, 2);
     const double diff_x2 = pow(x - mu_x, 2);
     const double diff_y2 = pow(y - mu_y, 2);
-    return exp(-.5 * (diff_x2 / std_x2 + diff_y2 / std_y2)) / (2. * M_PI * std_x * std_y);
+    const double C = 1. / (2. * M_PI * std_x * std_y);
+    const double prob = C * exp(-(diff_x2 / std_x2 + diff_y2 / std_y2));
+    return prob;
 };
 
 LandmarkObs transformObservation(Particle p, LandmarkObs obs) {
@@ -66,7 +68,7 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 
 	for (int i = 0; i < num_particles; i++) {
 		Particle p = particles[i];
-		if(yaw_rate > 1e-3) {
+		if(yaw_rate > 1e-5) {
             const double yaw_dt = yaw_rate * delta_t;
             const double v_over_yaw = velocity / yaw_rate;
 			p.x += v_over_yaw * (sin(p.theta + yaw_dt) - sin(p.theta)) + dist_x(gen);
@@ -74,8 +76,8 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
             p.theta += yaw_dt + dist_theta(gen);
 		} else {
             const double v_dt = velocity * delta_t;
-			p.x += v_dt * sin(p.theta) + dist_x(gen);
-			p.y += v_dt * cos(p.theta) + dist_y(gen);
+			p.x += v_dt * cos(p.theta) + dist_x(gen);
+            p.y += v_dt * sin(p.theta) + dist_y(gen);
             p.theta += dist_theta(gen);
 		}
 		particles[i] = p;
@@ -124,7 +126,8 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 			double weight = 1.;
 			for(int j = 0; j < transformed_obs.size(); j++) {
 				LandmarkObs obs = transformed_obs[j];
-				weight = weight * bivariate_pdf(predicted[obs.id].x, predicted[obs.id].y, obs.x, obs.y, std_landmark[0], std_landmark[1]);
+                double prob = bivariate_pdf(predicted[obs.id].x, predicted[obs.id].y, obs.x, obs.y, std_landmark[0], std_landmark[1]);
+				weight = weight * prob;
 			}
 			particles[i].weight = weight;
 		} else {
@@ -147,7 +150,7 @@ void ParticleFilter::resample() {
 void ParticleFilter::write(std::string filename) {
 	// You don't need to modify this file.
 	std::ofstream dataFile;
-	dataFile.open(filename, std::ios::app);
+	dataFile.open(filename, std::ios::trunc);
 	for (int i = 0; i < num_particles; ++i) {
 		dataFile << particles[i].x << " " << particles[i].y << " " << particles[i].theta << " " << particles[i].weight << "\n";
 	}

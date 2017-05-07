@@ -32,7 +32,7 @@ LandmarkObs transformObservation(Particle p, LandmarkObs obs) {
 };
 
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
-	num_particles = 100;
+	num_particles = 10;
 
 	double std_x = std[0];
 	double std_y = std[1];
@@ -67,8 +67,8 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 	std::normal_distribution<double> dist_theta(0., std_theta);
 
 	for (int i = 0; i < num_particles; i++) {
-		Particle p = particles[i];
-		if(yaw_rate > 1e-5) {
+		Particle& p = particles[i];
+		if(fabs(yaw_rate) > 1e-5) {
             const double yaw_dt = yaw_rate * delta_t;
             const double v_over_yaw = velocity / yaw_rate;
 			p.x += v_over_yaw * (sin(p.theta + yaw_dt) - sin(p.theta)) + dist_x(gen);
@@ -80,7 +80,6 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
             p.y += v_dt * sin(p.theta) + dist_y(gen);
             p.theta += dist_theta(gen);
 		}
-		particles[i] = p;
 	}
 
 }
@@ -106,7 +105,7 @@ void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::ve
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], 
 		std::vector<LandmarkObs> observations, Map map_landmarks) {
 	for (int i = 0; i < num_particles; i++) {
-		Particle p = particles[i];
+		Particle& p = particles[i];
 		std::vector<LandmarkObs> transformed_obs;
 		for(int j = 0; j < observations.size(); j++) {
 			transformed_obs.push_back(transformObservation(p, observations[j]));
@@ -125,15 +124,16 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 			dataAssociation(predicted, transformed_obs);
 			double weight = 1.;
 			for(int j = 0; j < transformed_obs.size(); j++) {
-				LandmarkObs obs = transformed_obs[j];
-                double prob = bivariate_pdf(predicted[obs.id].x, predicted[obs.id].y, obs.x, obs.y, std_landmark[0], std_landmark[1]);
+				const LandmarkObs& obs = transformed_obs[j];
+				const LandmarkObs& lm = predicted[obs.id];
+                double prob = bivariate_pdf(lm.x, lm.y, obs.x, obs.y, std_landmark[0], std_landmark[1]);
 				weight = weight * prob;
 			}
-			particles[i].weight = weight;
+			p.weight = weight;
 		} else {
-			particles[i].weight = 0.;
+			p.weight = 0.;
 		}
-        weights[i] = particles[i].weight;
+        weights[i] = p.weight;
 	}
 }
 

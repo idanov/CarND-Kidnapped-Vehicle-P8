@@ -10,5 +10,4 @@ term2_sim_linux/
 data/particles/
 .idea/
 .vscode/
-notebooks/
 cmake-build-debug/

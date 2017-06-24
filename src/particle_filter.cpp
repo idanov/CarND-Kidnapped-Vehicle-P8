@@ -152,7 +152,7 @@ void ParticleFilter::write(std::string filename) {
 	std::ofstream dataFile;
 	dataFile.open(filename, std::ios::trunc);
 	for (int i = 0; i < num_particles; ++i) {
-		dataFile << particles[i].x << " " << particles[i].y << " " << particles[i].theta << " " << particles[i].weight << "\n";
+		dataFile << particles[i].x << " " << particles[i].y << " " << particles[i].theta << "\n";
 	}
 	dataFile.close();
 }

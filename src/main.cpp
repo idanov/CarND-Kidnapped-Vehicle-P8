@@ -94,6 +94,8 @@ int main() {
 			n_y = N_y_init(gen);
 			n_theta = N_theta_init(gen);
 			pf.init(gt[i].x + n_x, gt[i].y + n_y, gt[i].theta + n_theta, sigma_pos);
+					  // write particle filters
+		  pf.write("data/particles/particles_"+to_string(i-1)+".txt");
 		}
 		else {
 			// Predict the vehicle's next state (noiseless).
@@ -132,6 +134,8 @@ int main() {
 			total_error[j] += avg_error[j];
 			cum_mean_error[j] = total_error[j] / (double)(i + 1);
 		}
+
+		pf.write("data/particles/particles_"+to_string(i)+".txt");
 		
 		// Print the cumulative weighted error
 		cout << "Cumulative mean weighted error: x " << cum_mean_error[0] << " y " << cum_mean_error[1] << " yaw " << cum_mean_error[2] << endl;
